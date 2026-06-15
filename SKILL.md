@@ -8,7 +8,7 @@ license: Complete terms in LICENSE.txt
 
 ## 版本
 
-`1.1.0`
+`1.3.0`
 
 ## 技能概述
 

@@ -26,7 +26,7 @@ from typing import List, Optional
 
 
 SKILL_NAME = "cninfo-annual-report"
-SKILL_VERSION = "1.2.0"
+SKILL_VERSION = "1.3.0"
 
 CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
 CNINFO_PDF_BASE = "https://static.cninfo.com.cn/"
@@ -55,9 +55,11 @@ REPORT_TYPES = {
     "q1": {
         "label": "一季报",
         "category": "category_yjdbg_szsh",
-        "search_key": "第一季度报告",
+        # 用"一季度"而非"第一季度报告"："一季度"是"第一季度"的子串，
+        # 可同时命中"2026年第一季度报告"与"2026年一季度报告"两种标题写法
+        "search_key": "一季度",
         "filename_suffix": "年第一季度报告",
-        "include_keyword": "第一季度",
+        "include_keyword": "一季度",
         "date_range": lambda y: (f"{y}-03-01", f"{y}-06-30"),
     },
     "q3": {
@@ -396,8 +398,12 @@ def download_single(
                 "error": "未找到正本（只有摘要或更正版）",
             }
 
-        # 生成文件名
+        # 生成文件名：标题含公司名则提取；标题不含公司名（如"2026年第一季度报告"）则回退到 --stock
         stock_name = extract_company_name(target["title"])
+        if (not stock_name) or stock_name[0].isdigit():
+            # 提取结果疑似无效（空或以数字开头），回退用用户传入的名称（代码除外）
+            if not re.match(r"^\d{6}$", stock):
+                stock_name = stock
         filename = f"{stock_name}_{year}{rt['filename_suffix']}.pdf"
         filename = re.sub(r'[\\/:*?"<>|]', '_', filename)
 
