@@ -45,9 +45,11 @@ def _clean_name(text: str) -> str:
     return name or (parts[0] if parts else "stock")
 
 
-def search_filings(stock: str, headless: bool = True):
+def search_filings(stock: str, year: int = None, report_type: str = None, headless: bool = True):
     """
-    用 Playwright 在 HKEX 搜索某股票的全部公告，返回 [{title, url}, ...]。
+    用 Playwright 在 HKEX 搜索某股票的公告，返回 [{title, url}, ...]。
+    传 year+report_type 时会限定日期范围（年报次年发布、中期报告当年发布），
+    确保目标报告落在返回结果内（HKEX 默认只返回最近约 100 条）。
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -85,7 +87,28 @@ def search_filings(stock: str, headless: bool = True):
             raise RuntimeError(f"未在 HKEX 找到股票 {stock}（自动补全无结果）: {e}")
         page.wait_for_timeout(1000)
 
-        # 搜索（不限文档类型，拿全部公告）
+        # 限定日期范围：年报次年发布、中期报告当年发布
+        if year:
+            if report_type == "interim":
+                s, e = f"{year}-01-01", f"{year}-12-31"
+            else:  # annual 次年发布
+                s, e = f"{year + 1}-01-01", f"{year + 1}-12-31"
+            try:
+                page.evaluate(
+                    """([s, e]) => {
+                        const setHid = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+                        setHid('startDate', s.replace(/-/g, ''));
+                        setHid('endDate', e.replace(/-/g, ''));
+                        document.querySelectorAll('.searchDateFrom').forEach(el => el.value = s);
+                        document.querySelectorAll('.searchDateTo').forEach(el => el.value = e);
+                    }""",
+                    [s, e],
+                )
+                page.wait_for_timeout(500)
+            except Exception:
+                pass
+
+        # 搜索（不限文档类型，拿该日期范围内全部公告）
         page.locator(".filter__btn-applyFilters-js").first.click(timeout=8000)
         page.wait_for_timeout(8000)
 
@@ -153,7 +176,7 @@ def download_pdf(pdf_url, output_dir, filename, timeout=60):
 def download_single(stock, year, report_type, output_dir, headless=True):
     rt = HK_REPORT_TYPES[report_type]
     try:
-        filings, stock_name = search_filings(stock, headless=headless)
+        filings, stock_name = search_filings(stock, year=year, report_type=report_type, headless=headless)
     except RuntimeError as e:
         return {"success": False, "stock": stock, "year": year,
                 "report_type": report_type, "report_label": rt["label"], "error": str(e)}

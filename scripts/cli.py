@@ -26,7 +26,7 @@ from typing import List, Optional
 
 
 SKILL_NAME = "cninfo-annual-report"
-SKILL_VERSION = "2.0.0"
+SKILL_VERSION = "2.0.1"
 
 CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
 CNINFO_PDF_BASE = "https://static.cninfo.com.cn/"
@@ -510,9 +510,9 @@ def cmd_download_hk(args):
     hkex = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hkex)
 
-    if args.type in ("q1", "q3", "all"):
+    if args.type not in ("annual", "interim"):
         print(json.dumps({"success": False, "market": "hk", "stock": args.stock,
-            "error": "港股只有年报(annual)和中期报告(interim)，不支持 q1/q3/all"},
+            "error": "港股只有年报(annual)和中期报告(interim)，不支持 q1/q3/semi/all"},
             ensure_ascii=False, indent=2))
         return
 
@@ -532,6 +532,11 @@ def cmd_download(args):
     market = detect_market(args.stock, getattr(args, "market", "auto"))
     if market == "hk":
         return cmd_download_hk(args)
+    if args.type == "interim":
+        print(json.dumps({"success": False, "market": "a", "stock": args.stock,
+            "error": "A股用 semi(半年报)；interim 是港股中期报告，港股请加 -m hk 或用港股代码"},
+            ensure_ascii=False, indent=2))
+        return
     output_dir = args.output or "."
     years = parse_years(args.year)
 
@@ -664,7 +669,7 @@ def _add_common_args(parser):
     parser.add_argument(
         "--type", "-t",
         type=str,
-        choices=list(REPORT_TYPES.keys()) + ["all"],
+        choices=list(REPORT_TYPES.keys()) + ["all", "interim"],
         default="annual",
         help="报告类型: annual/semi/q1/q3/all（默认: annual）",
     )

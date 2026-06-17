@@ -8,7 +8,7 @@ license: Complete terms in LICENSE.txt
 
 ## 版本
 
-`2.0.0`
+`2.0.1`
 
 ## 技能概述
 
@@ -45,6 +45,7 @@ python3 scripts/cli.py download --stock 01888 --year 2025 -m hk -o /tmp/
 - **市场判断**（自动）：6位代码=A股、4-5位代码=港股、名称默认 A股（港股请用代码或 `-m hk`）。
 - **报告类型**：港股只有 `annual`（年报）和 `interim`（中期报告），**无 q1/q3**（港交所不要求季报）。
 - **依赖**：港股需 `pip install playwright`（用系统 Chrome，**无需** `playwright install chromium`）。A 股仍为零依赖。
+- **限制**：HKEX 默认仅返回最近约 100 条公告；超高频公告公司（如腾讯）的**早期中期报告**可能不在结果窗口内（需手动查找）。年报与一般公司的中期报告均可正常下载。
 
 ## 核心处理流程
 
