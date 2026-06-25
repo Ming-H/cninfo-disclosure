@@ -1,138 +1,85 @@
-# cninfo-annual-report 📄
+# cninfo-disclosure · 巨潮信息披露下载
 
-> Claude Code Skill - 下载 A 股（巨潮资讯网）与 港股（HKEX 披露易）上市公司财报 PDF
+> 一个 Claude Code Skill：下载 A 股上市公司**财报**与**招股说明书** PDF，港股财报走 HKEX 披露易。同一巨潮数据源，统一入口。
 
-## 功能
+数据全部来自官方权威渠道：
+- **A股**：[巨潮资讯网 cninfo.com.cn](http://www.cninfo.com.cn)（证监会指定信息披露平台）
+- **港股**：[HKEX 披露易 hkexnews.hk](https://www1.hkexnews.hk)（港交所）
 
-- 📥 **A 股定期报告**：年报、半年报、一季报、三季报（巨潮资讯网）
-- 🇭🇰 **港股报告**：年报、中期报告（HKEX 披露易，港股无季报）
-- 🔍 **搜索公告**：按公司名称或股票代码搜索
-- 📦 **批量下载**：支持下载多年报告、某年全部报告类型
-- 🏢 **自动识别市场**：A 股（上交所/深交所）/ 港股，按代码自动判断
-- ✅ **智能筛选正本**：自动排除摘要、更正、补充等
+## ✨ 特性
 
-## 安装
+- 📄 **财报**：年报 / 半年报 / 一季报 / 三季报，按「股票 + 年份」定位，支持批量多年/多类型
+- 📜 **招股书**：首发 IPO 招股说明书，按「股票」定位（无需年份），自动识别板块（科创板/创业板/主板/北交所）
+- 🇭🇰 **港股**：年报 / 中期报告（HKEX 披露易，Playwright 驱动）
+- 🧠 **智能筛选正本**：自动排除摘要 / 更正 / H股 / 确认意见 / 过程稿等干扰项
+- ⚡ **零依赖**（A股）：纯 Python3 标准库；港股可选 Playwright
+- 🏗️ **底座架构**：巨潮查询/PDF下载抽成共享模块，财报与招股书复用同一底座
 
-将此 skill 复制到 Claude Code 的 skills 目录：
+## 📦 安装
 
-```bash
-# 全局安装
-cp -r cninfo-annual-report ~/.claude/skills/
-
-# 或项目级安装
-cp -r cninfo-annual-report your-project/.claude/skills/
-```
-
-## 使用方法
-
-### Claude Code 中使用
-
-直接告诉 Claude：
-
-```
-帮我下载三一重工 2025 年年报
-帮我下载徐工机械近3年的年报
-帮我下载杭叉集团 2025 年全部财报
-```
-
-### CLI 命令行使用
+作为 Claude Code Skill 安装到 `~/.claude/skills/`：
 
 ```bash
-# 下载年报
+git clone https://github.com/Ming-H/cninfo-disclosure.git ~/.claude/skills/cninfo-disclosure
+```
+
+港股下载需额外安装（A股不需要）：
+
+```bash
+pip install playwright   # 使用系统 Chrome，无需 playwright install chromium
+```
+
+## 🚀 用法
+
+```bash
+cd ~/.claude/skills/cninfo-disclosure
+
+# 财报（需 --year）
 python3 scripts/cli.py download --stock "三一重工" --year 2025 -o /tmp/
+python3 scripts/cli.py download --stock "三一重工" --year 2025 --type semi -o /tmp/    # 半年报
+python3 scripts/cli.py download --stock "三一重工" --year 2023-2025 -o /tmp/           # 批量多年
 
-# 下载半年报
-python3 scripts/cli.py download --stock "三一重工" --year 2025 --type semi -o /tmp/
+# 招股书（无需 --year）
+python3 scripts/cli.py download --stock "宁德时代" --type prospectus -o /tmp/          # 创业板 2018
+python3 scripts/cli.py download --stock 600519 --type prospectus -o /tmp/              # 茅台 2001（早期也有）
+python3 scripts/cli.py search --stock "宁德时代" --type prospectus                     # 只搜不下载
 
-# 下载一季报
-python3 scripts/cli.py download --stock "徐工机械" --year 2025 --type q1 -o /tmp/
-
-# 下载某年全部报告（年报+半年报+一季报+三季报）
-python3 scripts/cli.py download --stock "三一重工" --year 2025 --type all -o /tmp/
-
-# 批量下载近3年年报
-python3 scripts/cli.py download --stock "三一重工" --year 2023-2025 -o /tmp/
-
-# 搜索公告
-python3 scripts/cli.py search --stock "三一重工" --year 2025
-```
-
-### 港股下载（HKEX 披露易）
-
-港股通过 Playwright 驱动 HKEX 披露易搜索页（该站为 JSF + 反爬，纯 HTTP 无法搜索）。**港股只有年报和中期报告，无季报。**
-
-```bash
-# 港股年报（建滔积层板 01888）
-python3 scripts/cli.py download --stock 01888 --year 2025 -o /tmp/
-
-# 港股中期报告
-python3 scripts/cli.py download --stock 01888 --year 2025 --type interim -o /tmp/
-
-# 显式指定市场（名称默认按 A 股，港股名称需 -m hk）
+# 港股财报
 python3 scripts/cli.py download --stock 01888 --year 2025 -m hk -o /tmp/
 ```
 
-> 港股依赖：`pip install playwright`（使用系统 Chrome，无需 `playwright install`）
+在 Claude Code 中直接用自然语言：「下载宁德时代的招股说明书」「下三一重工 2023-2025 年报」即可触发本 skill。
 
-### 参数说明
+## 🏗️ 架构
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--stock` / `-s` | 股票名称或代码 | 必填 |
-| `--year` / `-y` | 年份：`2025` / `2023-2025` / `2023,2025` | 必填 |
-| `--type` / `-t` | 报告类型：`annual` / `semi` / `q1` / `q3` / `all` | `annual` |
-| `--market` / `-m` | 市场：`auto` / `a` / `hk`（6位代码=A股，4-5位=港股） | `auto` |
-| `--output` / `-o` | 下载目录 | 当前目录 |
-| `--timeout` | 超时秒数 | 30 |
-
-### 报告类型
-
-| 类型 | 参数 | 发布时间 |
-|------|------|---------|
-| 年报 | `annual` | 次年 3-4 月 |
-| 半年报 | `semi` | 当年 7-8 月 |
-| 一季报 | `q1` | 当年 4-5 月 |
-| 三季报 | `q3` | 当年 10-11 月 |
-
-## 技术特点
-
-- **A 股零依赖**：纯 Python 3 标准库，无需安装任何第三方包
-- **港股**：HKEX 披露易为 JSF + 反爬站点，用 Playwright 驱动（`pip install playwright`，用系统 Chrome）
-- **数据来源**：A 股 [巨潮资讯网](http://www.cninfo.com.cn) / 港股 [HKEX 披露易](https://www1.hkexnews.hk)
-- **PDF 校验**：自动验证下载文件是否为合法 PDF
-
-## 输出示例
-
-```json
-{
-  "success": true,
-  "stock": "三一重工",
-  "total": 3,
-  "downloaded": 3,
-  "failed": 0,
-  "results": [
-    {
-      "year": 2023,
-      "report_label": "年报",
-      "downloaded": "/tmp/三一重工_2023年年度报告.pdf",
-      "file_size": "5.0MB"
-    },
-    {
-      "year": 2024,
-      "report_label": "年报",
-      "downloaded": "/tmp/三一重工_2024年年度报告.pdf",
-      "file_size": "5.1MB"
-    },
-    {
-      "year": 2025,
-      "report_label": "年报",
-      "downloaded": "/tmp/三一重工_2025年年度报告.pdf",
-      "file_size": "1.6MB"
-    }
-  ]
-}
+```
+scripts/
+├── cninfo_client.py   # 共享底座：巨潮公告查询API + PDF下载 + 通用工具
+├── reports.py         # 财报（annual/semi/q1/q3）
+├── prospectus.py      # 招股书（首发IPO招股书）
+├── hkex.py            # 港股（Playwright 驱动 HKEX 披露易）
+└── cli.py             # 统一入口（search / download）
 ```
 
-## 许可证
+巨潮公告查询 API 支持「公告类别（category）+ 全文搜索（searchkey）」，因此财报与招股书复用同一接口——招股书只是换了筛选规则、去掉了按年份定位的逻辑（招股书是上市时的一次性文件）。
 
-MIT License
+## 📜 招股书筛选规则
+
+- 必含「招股说明书」+ 首发特征（「首次公开发行」；早期老式标题由宽松逻辑兜底）
+- 排除：H股 / 港股 / 确认意见 / 意向书 / 摘要 / 英文 / 过程稿（申报稿/上会稿/注册稿）/ 再融资（配股/增发/可转债）
+- 全时段宽日期范围搜索（上市时点因公司而异）
+
+## 🗺️ 路线图
+
+- [x] **v1**：巨潮已上市公司首发招股书 + 全部财报 + 港股财报
+- [ ] **v2**：再融资招股书（配股/增发/可转债）+ 港股招股章程
+- [ ] **v3**：IPO 审核中预披露招股书（证监会/交易所审核系统，需 Playwright）
+
+## 📌 数据源与免责
+
+- 数据来源：[巨潮资讯网](http://www.cninfo.com.cn) / [HKEX 披露易](https://www1.hkexnews.hk)，均为官方权威免费渠道。
+- 所有 PDF 版权归原公告作者公司所有，本工具仅供个人学习研究使用，**非投资建议**。
+
+## 📄 License
+
+MIT
