@@ -1,6 +1,6 @@
 ---
 name: cninfo-disclosure
-description: 下载上市公司信息披露 PDF——财报（年报/半年报/一季报/三季报）与招股说明书（首发 IPO 招股书）。A股走巨潮资讯网，港股财报走 HKEX 披露易。按公司名称或代码查询，自动筛选正本（排除摘要/更正/H股等）。当用户需要下载财报/年报/季报、招股说明书/招股书 PDF、查看公告原文时使用。
+description: 下载上市公司信息披露与券商研报——财报（年报/半年报/一季报/三季报）、招股说明书（首发 IPO 招股书）、券商研报清单。财报/招股书走巨潮资讯网，港股财报走 HKEX 披露易，券商研报走东方财富。按公司名称或代码查询，自动筛选正本（排除摘要/更正/H股等）。当用户需要下载财报/年报/季报、招股说明书/招股书 PDF、查看券商研报/卖方研报/分析师评级/盈利预测、查看公告原文时使用。
 license: Complete terms in LICENSE.txt
 ---
 
@@ -8,19 +8,21 @@ license: Complete terms in LICENSE.txt
 
 ## 版本
 
-`3.0.0`（由 `cninfo-annual-report` 升级为「巨潮信息披露」底座，新增招股书）
+`3.1.0`（新增券商研报清单：东方财富研报中心，输出 CSV+Markdown，含评级/分析师/盈利预测/PDF直链）
 
 ## 技能概述
 
-本技能是「巨潮信息披露」下载底座，复用同一巨潮数据源，统一支持两类文档：
+本技能是「信息披露 + 研报」下载底座，统一支持三类文档：
 
-- **财报**（`reports.py`）：年报 / 半年报 / 一季报 / 三季报 —— 按 **股票 + 年份** 定位
-- **招股书**（`prospectus.py`）：首发招股说明书（IPO）—— 按 **股票** 定位（**无需年份**）
+- **财报**（`reports.py`）：年报 / 半年报 / 一季报 / 三季报 —— 按 **股票 + 年份** 定位（巨潮）
+- **招股书**（`prospectus.py`）：首发招股说明书（IPO）—— 按 **股票** 定位（**无需年份**，巨潮）
+- **券商研报**（`research.py`）：卖方研报清单 —— 按 **股票** 定位（**无需年份**，东方财富），输出 CSV+Markdown，含评级/分析师/盈利预测/PDF直链
 
 港股财报走 HKEX 披露易（`hkex.py`，需 Playwright）。
 
 数据来源：
-- **A股**：巨潮资讯网（http://www.cninfo.com.cn）— 证监会指定信息披露平台
+- **A股公告**：巨潮资讯网（http://www.cninfo.com.cn）— 证监会指定信息披露平台
+- **券商研报**：东方财富研报中心（https://data.eastmoney.com/report）— 卖方研报聚合
 - **港股**：HKEX 披露易（https://www1.hkexnews.hk）— 港交所
 
 ## 架构（底座 + 子模块）
@@ -30,6 +32,7 @@ scripts/
 ├── cninfo_client.py   # 共享底座：巨潮公告查询API + PDF下载 + 通用工具（纯标准库）
 ├── reports.py         # 财报（annual/semi/q1/q3）
 ├── prospectus.py      # 招股书（首发IPO招股书）
+├── research.py        # 券商研报（东方财富，输出 CSV+Markdown 清单）
 ├── hkex.py            # 港股（Playwright 驱动 HKEX 披露易）
 └── cli.py             # 统一入口（search / download）
 ```
@@ -82,6 +85,38 @@ python3 scripts/cli.py search --stock "宁德时代" --type prospectus
 }
 ```
 
+### 券商研报（无需 `--year`，东方财富）
+
+```bash
+# 下载券商研报清单（公司名或代码均可），落地 CSV + Markdown
+python3 scripts/cli.py download --stock "艾力斯" --type research -o /tmp/
+python3 scripts/cli.py download --stock 688578 --type research -o /tmp/
+
+# 只搜索（输出 JSON 研报列表）
+python3 scripts/cli.py search --stock "688578" --type research
+```
+
+输出为**研报清单**（CSV + Markdown），含：日期 / 机构 / 分析师 / 评级 / 报告标题 / 行业 / 盈利预测（EPS、PE）/ 每篇研报的 **PDF 直链**。研报模块输出清单而非单个 PDF（每篇 PDF 链接已在清单中，可按需下载）。
+
+返回示例（研报）：
+
+```json
+{
+  "success": true,
+  "stock": "688578",
+  "doc_type": "research",
+  "report_label": "券商研报",
+  "stock_name": "艾力斯",
+  "stock_code": "688578",
+  "total": 17,
+  "date_span": "2023-09-13 ~ 2026-05-09",
+  "org_count": 6,
+  "analyst_count": 8,
+  "csv": "/tmp/艾力斯_券商研报清单.csv",
+  "markdown": "/tmp/艾力斯_券商研报清单.md"
+}
+```
+
 ### 港股财报
 
 ```bash
@@ -96,7 +131,7 @@ python3 scripts/cli.py download --stock 01888 --year 2025 --type interim -m hk -
 ## 核心处理流程
 
 1. **接收请求**：股票名称/代码 + 文档类型（财报还需年份）。
-2. **判断文档类型**：prospectus → `prospectus.py`；财报 → `reports.py`；港股 → `hkex.py`。
+2. **判断文档类型**：prospectus → `prospectus.py`；research → `research.py`；财报 → `reports.py`；港股 → `hkex.py`。
 3. **搜索公告**：调用巨潮公告查询 API（`cninfo_client.query_with_stock`，自动判断交易所、名称时两市都查并去重）。
 4. **筛选正本**：按文档类型的 include/exclude 规则筛掉摘要、更正、干扰公告。
 5. **下载 PDF**：校验 `%PDF-` 头，落地本地。
@@ -130,7 +165,8 @@ python3 scripts/cli.py download --stock 01888 --year 2025 --type interim -m hk -
 | 半年报 | `semi` | 半年度报告，当年 7-8 月 |
 | 一季报 | `q1` | 第一季度报告，当年 4-5 月 |
 | 三季报 | `q3` | 第三季度报告，当年 10-11 月 |
-| **招股书** | `prospectus` | 首发招股说明书，**无需年份** |
+| **招股书** | `prospectus` | 首发招股说明书，**无需年份**（巨潮） |
+| **券商研报** | `research` | 卖方研报清单，**无需年份**（东方财富） |
 | 全部财报 | `all` | 年报+半年报+一季报+三季报 |
 | 港股中期 | `interim` | 港股中期报告（仅港股，加 `-m hk`）|
 
@@ -141,11 +177,12 @@ python3 scripts/cli.py download --stock 01888 --year 2025 --type interim -m hk -
 | 招股书未找到 | 老公司（2008 年前）可能无电子版 → 引导到上交所/深交所官网；未上市公司（IPO 审核中）→ 证监会/交易所审核系统预披露 |
 | 找到公告但无正本 | 返回 `available` 列表（相关公告标题/链接），由用户选择 |
 | 财报未找到 | 提示报告可能未发布，或公司名/年份有误，引导访问巨潮 |
+| 研报未找到 | 冷门标的可能暂无券商覆盖 → 引导访问东方财富研报中心核实 |
 | 网络/反爬 | 提示重试或浏览器手动下载 |
 
 ## 数据来源标注
 
-- 引用数据必须标注来源为 **巨潮资讯网**（http://www.cninfo.com.cn）/ **HKEX 披露易**（https://www1.hkexnews.hk）。
+- 引用数据必须标注来源：**巨潮资讯网**（http://www.cninfo.com.cn）/ **东方财富研报中心**（https://data.eastmoney.com/report）/ **HKEX 披露易**（https://www1.hkexnews.hk）。
 - 所有 PDF 版权归原公告作者公司所有，本工具仅供个人学习研究使用。
 
 ## 路线图
@@ -166,6 +203,7 @@ cninfo-disclosure/
     ├── cninfo_client.py  # 共享底座（巨潮 API + PDF 下载 + 工具）
     ├── reports.py        # 财报
     ├── prospectus.py     # 招股书
+    ├── research.py       # 券商研报（东方财富）
     ├── hkex.py           # 港股（Playwright）
     └── cli.py            # 统一入口
 ```

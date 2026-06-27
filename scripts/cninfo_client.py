@@ -27,7 +27,7 @@ from typing import List, Optional
 # ─── 常量 ───────────────────────────────────────────────────
 
 SKILL_NAME = "cninfo-disclosure"
-SKILL_VERSION = "3.0.0"
+SKILL_VERSION = "3.1.0"
 
 CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
 CNINFO_PDF_BASE = "https://static.cninfo.com.cn/"

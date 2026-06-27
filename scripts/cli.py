@@ -2,9 +2,10 @@
 """
 巨潮信息披露下载 · 统一入口（cninfo-disclosure）
 
-支持两类文档（同一巨潮数据源）：
-  - 财报：年报 / 半年报 / 一季报 / 三季报   （按 股票 + 年份 定位）
-  - 招股书：首发招股说明书                 （按 股票 定位，无需年份）
+支持三类文档：
+  - 财报：年报 / 半年报 / 一季报 / 三季报   （按 股票 + 年份 定位，巨潮）
+  - 招股书：首发招股说明书                 （按 股票 定位，无需年份，巨潮）
+  - 券商研报：卖方研报清单                 （按 股票 定位，无需年份，东方财富）
 港股财报走 HKEX 披露易（hkex.py，需 Playwright）。
 
 子命令：
@@ -19,6 +20,9 @@
   # 招股书（无需 --year）
   python3 scripts/cli.py download --stock "宁德时代" --type prospectus -o /tmp/
 
+  # 券商研报清单（无需 --year）
+  python3 scripts/cli.py download --stock 688578 --type research -o /tmp/
+
   # 港股财报
   python3 scripts/cli.py download --stock 01888 --year 2025 -m hk -o /tmp/
 """
@@ -32,6 +36,7 @@ import sys
 from cninfo_client import DEFAULT_TIMEOUT, detect_market, parse_years
 from reports import REPORT_TYPES, download_report, search_reports
 from prospectus import download_prospectus, search_prospectus
+from research import download_research, search_research
 
 
 # ─── 子命令：search ──────────────────────────────────────────
@@ -61,6 +66,21 @@ def cmd_search(args):
         if not anns:
             out["tip"] = "未找到招股说明书。老公司可能无电子版；未上市公司请到证监会/交易所审核系统查。"
         print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
+
+    # 研报：无需年份，数据源为东方财富
+    if doc_type == "research":
+        reports = search_research(args.stock, timeout=args.timeout)
+        if not reports:
+            print(json.dumps({
+                "success": False, "stock": args.stock, "doc_type": "research",
+                "error": f"未在东方财富找到 {args.stock} 的券商研报，可能暂无券商覆盖。",
+            }, ensure_ascii=False, indent=2))
+            return
+        print(json.dumps({
+            "success": True, "stock": args.stock, "doc_type": "research",
+            "total": len(reports), "reports": reports,
+        }, ensure_ascii=False, indent=2))
         return
 
     if doc_type == "interim":
@@ -147,6 +167,12 @@ def cmd_download(args):
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return
 
+    # 研报：无需年份，落地 CSV + Markdown 清单（东方财富）
+    if doc_type == "research":
+        res = download_research(args.stock, output_dir, timeout=args.timeout)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return
+
     if doc_type == "interim":
         print(json.dumps({
             "success": False, "market": "a", "stock": args.stock,
@@ -197,9 +223,9 @@ def _add_common_args(parser):
     parser.add_argument("--year", "-y", type=str, default=None,
                         help="年份：单年(2025)/范围(2023-2025)/枚举(2023,2025)。财报必填，招股书无需")
     parser.add_argument("--type", "-t", type=str,
-                        choices=list(REPORT_TYPES.keys()) + ["prospectus", "all", "interim"],
+                        choices=list(REPORT_TYPES.keys()) + ["prospectus", "research", "all", "interim"],
                         default="annual",
-                        help="文档类型: annual/semi/q1/q3（财报）/ prospectus（招股书）/ all / interim(港股中期)，默认 annual")
+                        help="文档类型: annual/semi/q1/q3（财报）/ prospectus（招股书）/ research（券商研报，无需年份）/ all / interim(港股中期)，默认 annual")
     parser.add_argument("--market", "-m", type=str, choices=["auto", "a", "hk"], default="auto",
                         help="市场: auto(自动判断) / a(A股) / hk(港股)，默认 auto")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
@@ -208,7 +234,7 @@ def _add_common_args(parser):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="巨潮信息披露下载 - 财报 + 招股书 PDF 搜索与下载（A股巨潮 / 港股HKEX）",
+        description="信息披露与研报下载 - 财报 + 招股书（巨潮/HKEX）+ 券商研报清单（东方财富）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
@@ -222,6 +248,10 @@ def build_parser():
   # 下载招股说明书（无需 --year）
   python3 scripts/cli.py download --stock "宁德时代" --type prospectus -o /tmp/
   python3 scripts/cli.py download --stock 300750 --type prospectus -o /tmp/
+
+  # 下载券商研报清单（无需 --year，东方财富）
+  python3 scripts/cli.py download --stock "艾力斯" --type research -o /tmp/
+  python3 scripts/cli.py download --stock 688578 --type research -o /tmp/
 
   # 搜索招股书公告
   python3 scripts/cli.py search --stock "宁德时代" --type prospectus
@@ -238,6 +268,7 @@ def build_parser():
   q1          一季报
   q3          三季报
   prospectus  首发招股说明书（无需年份）
+  research    券商研报清单（无需年份，东方财富）
   all         全部财报类型
   interim     港股中期报告
 
